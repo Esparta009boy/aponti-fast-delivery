@@ -29,3 +29,19 @@ O sistema é composto por 4 microsserviços e 1 banco de dados:
 ### 1. Inicializar o Cluster no Nó Manager
 ```bash
 docker swarm init
+
+2. Criar a Rede Overlay Segura
+Bash
+docker network create --driver overlay --opt encrypted aponti-net
+
+3. Fazer o Deploy da Stack de Produção
+Bash
+docker stack deploy -c docker-compose.yml aponti
+
+4. Verificar o Status dos Serviços e Réplicas
+Bash
+docker stack services aponti
+
+5. Verificar a Alocação dos Contêineres nos Nós
+Bash
+docker service ls
