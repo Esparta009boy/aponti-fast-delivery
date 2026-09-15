@@ -1,0 +1,126 @@
+version: '3.8'
+
+# =======================================================
+# REDES DA INFRAESTRUTURA (Fase 2 e Fase 3)
+# =======================================================
+networks:
+  aponti-net:
+    driver: overlay
+    attachable: true
+    driver_opts:
+      encrypted: "true"
+
+# =======================================================
+# VOLUMES PERSISTENTES (Fase 3)
+# =======================================================
+volumes:
+  db_data:
+    driver: local
+
+# =======================================================
+# SERVIÇOS / MICROSSERVIÇOS
+# =======================================================
+services:
+
+  # 1. Banco de Dados Privado
+  db:
+    image: mongo:6.0
+    networks:
+      - aponti-net
+    volumes:
+      - db_data:/data/db
+    # Não expõe portas para a internet por segurança
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  # 2. Serviço de Produtos (Product Service)
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    image: esparta009boy/product-service:latest
+    environment:
+      - PORT=3001
+      - DB_URL=mongodb://db:27017/products
+    networks:
+      - aponti-net
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # 3. Serviço de Estoque (Inventory Service)
+  inventory-service:
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    image: esparta009boy/inventory-service:latest
+    environment:
+      - PORT=3002
+      - DB_URL=mongodb://db:27017/inventory
+    networks:
+      - aponti-net
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # 4. Serviço de Pedidos (Order Service)
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    image: esparta009boy/order-service:latest
+    environment:
+      - PORT=3003
+      - DB_URL=mongodb://db:27017/orders
+    networks:
+      - aponti-net
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # 5. API Gateway (Ponto Único de Entrada Público)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    image: esparta009boy/api-gateway:latest
+    ports:
+      - "80:3000"
+    environment:
+      - PORT=3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - INVENTORY_SERVICE_URL=http://inventory-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+    depends_on:
+      - product-service
+      - inventory-service
+      - order-service
+    networks:
+      - aponti-net
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
